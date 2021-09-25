@@ -382,34 +382,6 @@ async def check_play_next(ctx):
 
 async def play_music(ctx,song):
     print(f"playing {song[1]}")
-    if isinstance(ctx, discord.VoiceChannel):
-        song_there = os.path.isfile("song.mp3")
-
-        if song_there:
-            os.remove("song.mp3")
-
-        voice = ctx.guild.voice_client
-
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([song])
-
-        if voice:
-            if voice.is_connected():
-                if voice.is_playing():
-                    voice.stop()
-                    voice.play(FFmpegPCMAudio(source="song.mp3"))
-                else:
-                    voice.play(FFmpegPCMAudio(source="song.mp3"))
-            else:
-                await ctx.connect()
-                voice.play(FFmpegPCMAudio(source="song.mp3"))
-        else:
-            voice = await ctx.connect()
-            voice.play(FFmpegPCMAudio(source="song.mp3"))
-        await asyncio.sleep(120)
-        if not voice.is_playing():
-            await voice.disconnect()    
-        return
         
     global now_playing
     if song != now_playing:
