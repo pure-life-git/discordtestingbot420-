@@ -592,9 +592,13 @@ async def play(ctx, *args):
 
     voice = ctx.guild.voice_client
 
+    queue_name = "m"+str(ctx.guild.id)
+
     if voice:
         if voice.is_playing():
             music_queue.append((song, title, channel, runtime, ctx.author, live))
+            cur.execute(f"INSERT INTO {queue_name} VALUES ('{song}');")
+            conn.commit()
             total_runtime = 0
             for song in music_queue[1:]:
                 total_runtime += col_to_sec(song[3])
@@ -628,6 +632,7 @@ async def skip(ctx):
         return
     elif ignored:
         return
+
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice.is_connected():
         if voice.is_playing():
@@ -646,6 +651,7 @@ async def leave(ctx):
     cur.execute(f"SELECT ignore FROM musicbot WHERE id = {int(ctx.author.id)};")
     ignored = cur.fetchone()[0]
     server_name = "t"+str(ctx.guild.id)
+    queue_name = "m"+str(ctx.guild.id)
 
     cur.execute(f"SELECT channels FROM {server_name};")
     channelWhitelist = [channel[0] for channel in cur.fetchall() if type(channel[0]) is int]
@@ -658,12 +664,14 @@ async def leave(ctx):
         return
     elif ignored:
         return
-    # elif "Coin Operator" not in [i.name for i in ctx.author.roles]:
-    #     await ctx.send("You need a role called `Coin Operator` to do that.")
+
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice.is_connected():
         voice.stop()
         await voice.disconnect()
+        SQL = f"DELETE FROM {queue_name};"
+        cur.execute(SQL)
+        conn.commit()
         music_queue.clear()
     else:
         await ctx.send("The bot is not connected to an active voice channel.")
@@ -674,6 +682,7 @@ async def clear(ctx):
     cur.execute(f"SELECT ignore FROM musicbot WHERE id = {int(ctx.author.id)};")
     ignored = cur.fetchone()[0]
     server_name = "t"+str(ctx.guild.id)
+    queue_name = "m"+str(ctx.guild.id)
 
     cur.execute(f"SELECT channels FROM {server_name};")
     channelWhitelist = [channel[0] for channel in cur.fetchall() if type(channel[0]) is int]
@@ -686,11 +695,14 @@ async def clear(ctx):
         return
     elif ignored:
         return
-    # elif "Coin Operator" not in [i.name for i in ctx.author.roles]:
-    #     await ctx.send("You need a role called `Coin Operator` to do that.")
-    num_songs = len(music_queue)
-    music_queue.clear()
-    await ctx.send(f"The queue has been cleared of {num_songs} songs.")
+
+    cur.execute(f"SELECT COUNT(*) FROM {queue_name};")
+    queue_len = cur.fetchone()[0]
+
+    cur.execute(f"DELETE FROM {queue_name};")
+    conn.commit()
+
+    await ctx.send(f"The queue has been cleared of {queue_len} songs.")
 
 @bot.command(name="queue", description="Displays the queue of songs", aliases=["q"])
 async def queue(ctx):
@@ -811,6 +823,7 @@ async def shuffle(ctx):
     cur.execute(f"SELECT ignore FROM musicbot WHERE id = {int(ctx.author.id)};")
     ignored = cur.fetchone()[0]
     server_name = "t"+str(ctx.guild.id)
+    queue_name = "m"+str(ctx.guild.id)
 
     cur.execute(f"SELECT channels FROM {server_name};")
     channelWhitelist = [channel[0] for channel in cur.fetchall() if type(channel[0]) is int]
@@ -823,6 +836,8 @@ async def shuffle(ctx):
         return
     elif ignored:
         return
+
+    SQL = f"SELECT * "
     random.shuffle(music_queue)
     await ctx.send("Queue successfully shuffled.")
 
@@ -837,8 +852,6 @@ async def ignore(ctx, user: discord.Member = False):
 
     cur.execute(f"SELECT mods FROM {server_name};")
     modIDS = [id[0] for id in cur.fetchall() if type(id[0]) is int]
-
-    
 
     if len(channelWhitelist) > 0 and int(ctx.channel.id) not in channelWhitelist:
         await ctx.message.delete()
@@ -1251,7 +1264,7 @@ async def on_guild_join(guild):
     cur.execute(SQL)
     conn.commit()
 
-    SQL = f"CREATE TABLE {queue_name} (song varchar(255), title varchar(255), channel varchar(255), runtime varchar(255), author varchar(255), live bool);"
+    SQL = f"CREATE TABLE {queue_name} (song varchar(255));"
     cur.execute(SQL)
     conn.commit()
 
