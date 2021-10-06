@@ -270,61 +270,6 @@ def col_to_sec(time:str):
 
     return(int(h) * 3600 + int(m) * 60 + int(s))
 
-def get_track_names(user, playlist_id):
-    track_names = []
-    playlist = sp.user_playlist(user, playlist_id)
-    for item in playlist['tracks']['items']:
-        track = item['track']
-        track_names.append(sp.track(track['id'])['name'])
-    return track_names
-
-async def play_spotify(ctx, song):
-    ytresults = YoutubeSearch(song, max_results=1).to_dict()
-
-    if len(ytresults) == 0:
-        await ctx.send("No results.")
-        return
-    else:
-        song = "".join(("https://www.youtube.com", ytresults[0]["url_suffix"]))
-        title = ytresults[0]["title"]
-        channel = ytresults[0]["channel"]
-        runtime = ytresults[0]["duration"]
-
-    runtime_sec = col_to_sec(runtime)
-
-    if runtime_sec > 7200:
-        await ctx.send("Cannot queue a song longer than 2 hours.")
-        return
-
-    voice = ctx.guild.voice_client
-
-    if voice:
-        if voice.is_playing():
-            music_queue.append((song, title, channel, runtime, ctx.author, False))
-            return
-        else:
-            await play_music(ctx, (song,title,channel, runtime, ctx.author, False))
-    else:
-        await ctx.author.voice.channel.connect()
-        await play_music(ctx,(song,title,channel, runtime, ctx.author, False))
-
-async def play_soundcloud(ctx, song):
-    if col_to_sec(song[3]) > 7200:
-        await ctx.send("Cannot queue a song longer than 2 hours.")
-        return
-    
-    voice = ctx.guild.voice_client
-
-    if voice:
-        if voice.is_playing():
-            music_queue.append(song)
-            return
-        else:
-            await play_music(ctx, song)
-    else:
-        await ctx.author.voice.channel.connect()
-        await play_music(ctx, song)
-
 async def playlist(ctx, song):
     voice = ctx.guild.voice_client
 
@@ -342,6 +287,11 @@ async def playlist(ctx, song):
 
 async def check_play_next(ctx):
     voice = ctx.guild.voice_client
+    queue_name = "m"+str(ctx.guild.id)
+
+    cur.execute(f"DELETE TOP(1) FROM {queue_name};")
+    conn.commit()
+    
     if len(music_queue) > 0:
         if song_repeating:
             if voice.is_playing():
@@ -594,11 +544,12 @@ async def play(ctx, *args):
 
     queue_name = "m"+str(ctx.guild.id)
 
+    cur.execute(f"INSERT INTO {queue_name} VALUES ('{song}', {ctx.author.id});")
+    conn.commit()
+
     if voice:
         if voice.is_playing():
             music_queue.append((song, title, channel, runtime, ctx.author, live))
-            cur.execute(f"INSERT INTO {queue_name} VALUES ('{song}');")
-            conn.commit()
             total_runtime = 0
             for song in music_queue[1:]:
                 total_runtime += col_to_sec(song[3])
@@ -837,7 +788,7 @@ async def shuffle(ctx):
     elif ignored:
         return
 
-    SQL = f"SELECT * "
+    cur.execute(f"SELECT * FROM {queue_name};")
     random.shuffle(music_queue)
     await ctx.send("Queue successfully shuffled.")
 
