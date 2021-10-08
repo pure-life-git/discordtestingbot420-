@@ -1093,6 +1093,9 @@ async def on_guild_remove(guild):
     cur.execute(SQL)
     conn.commit()
     
+
+
+bot.add_cog(Music(bot))
 #--------------------------------------------------------------------------------------------------------------------------------------#
 #runs the bot using the discord bot token provided within Heroku
 bot.run(os.environ['token'])
